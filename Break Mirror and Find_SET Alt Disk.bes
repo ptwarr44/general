@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="BES.xsd">
+	<Task>
+		<Title>Break Mirror and Find/SET Alt Disk</Title>
+		<Description>Periodically run the script for the System Data analysis </Description>
+		<Relevance>true</Relevance>
+		<Category></Category>
+		<Source>Internal</Source>
+		<SourceID></SourceID>
+		<SourceReleaseDate>2019-02-07</SourceReleaseDate>
+		<SourceSeverity></SourceSeverity>
+		<CVENames></CVENames>
+		<SANSID></SANSID>
+		<MIMEField>
+			<Name>x-fixlet-modification-time</Name>
+			<Value>Mon, 08 Mar 2021 20:12:17 +0000</Value>
+		</MIMEField>
+		<Domain>PTCH</Domain>
+		<DefaultAction ID="Action3">
+			<Description>
+				<PreLink>Click </PreLink>
+				<Link>here</Link>
+				<PostLink> to use the embedded file</PostLink>
+			</Description>
+			<ActionScript MIMEType="application/x-Fixlet-Windows-Shell"><![CDATA[parameter "DownloadDir"="{pathname of client folder of current site}"
+folder create "{parameter "DownloadDir" of action}/__Patches"
+parameter "PatchDir"="{parameter "DownloadDir" of action}/__Patches"
+parameter "FixDir"="{pathname of parent folder of client folder of current site & "/__AIX_TEMP_" of action}"
+
+// Setup Directories
+wait /usr/bin/rm -rf "{parameter "FixDir" of action}"
+wait /usr/bin/mkdir -p "{parameter "FixDir" of action}"
+
+
+// Used for ALT_DISK_FINDER Script
+parameter "CustomDir"="{pathname of parent folder of client folder of current site}/__customdata"
+wait mkdir -p "{parameter "CustomDir" of action}"
+
+// Delete tmp files
+wait rm -rf "{parameter "CustomDir" of action}/mirrordisk.tmp"
+wait rm -rf "{parameter "CustomDir" of action}/maindisk.tmp"
+
+// Capture main and mirrored disks
+createfile until __EOF
+#!/usr/bin/ksh
+# Capture boot and main rootvg disks
+bootDisk=$(getconf BOOT_DEVICE | grep -v "^$")
+BOOTLIST=$(bootlist -m normal -o | awk '{{print $1}' | head -1)
+ROOTVG=$(lspv | grep rootvg | awk '{{print $1}')
+ROOTVG_DISK=$(lslv -l hd5 | grep hdisk | awk '{{print $1}' | head -1)
+
+# Find whether the boot and main disks match. If not, send ROOTVG_DISK to maindisk.tmp
+if [[ $bootDisk == $ROOTVG_DISK ]] || [[ $BOOTLIST == $ROOTVG_DISK ]]
+then
+  echo $ROOTVG_DISK > "/var/opt/BESClient/__BESData/__customdata/maindisk.tmp"
+
+  # If match found, check for mirror
+  if [[ $(lslv -l hd5 | grep -vE "PV|hd5" |wc -l) -gt 1 ]]
+  then
+    mirrorDisk=$(lslv -l hd5 | grep -vE "PV|hd5" | awk '{{print $1}'| grep -v $ROOTVG_DISK)
+    echo $mirrorDisk > "/var/opt/BESClient/__BESData/__customdata/mirrordisk.tmp"
+  fi
+else
+  echo "No Disk" > "/var/opt/BESClient/__BESData/__customdata/maindisk.tmp"
+  exit 2000
+fi
+__EOF
+wait mv __createfile "{parameter "CustomDir" of action}/rootvg_disks.sh"
+wait sh "{parameter "CustomDir" of action}/rootvg_disks.sh"
+
+createfile until __EOF
+#!/bin/ksh
+   #Not sure what 'cd /tmp' does
+   cd /tmp
+   
+   #Collect values for any current old or altinst rootvg
+   OLD_ROOTVG_DISK=$(lspv | grep " old_rootvg " 2>&1 | awk '{{print $1}')
+   ALTINST_ROOTVG_DISK=$(lspv | grep " altinst_rootvg " 2>&1 | awk '{{print $1}')
+   OLD_ROOTVG=$(lspv | grep " old_rootvg ")
+   ALTINST_ROOTVG=$(lspv | grep " altinst_rootvg ")
+
+   # If a disk already has an old_rootvg or altinst_rootvg, this is the target
+   [[ $OLD_ROOTVG_DISK != "" ]] && ALTDISK=$OLD_ROOTVG_DISK
+   [[ $ALTINST_ROOTVG_DISK != "" ]] && ALTDISK=$ALTINST_ROOTVG_DISK
+
+        if [[ $ALTDISK != "" ]]
+        then
+                print $ALTDISK > "{parameter "CustomDir" of action}/altdisk.tmp"
+
+				# Remove old_rootvg or altinst_rootvg before updates
+                if [[ $OLD_ROOTVG != "" ]]
+				then
+						alt_rootvg_op -X old_rootvg
+						/usr/sbin/bosboot -a
+				elif [[ $ALTINST_ROOTVG != "" ]]
+				then
+						alt_rootvg_op -X altinst_rootvg
+						/usr/sbin/bosboot -a
+				fi
+                return 0
+        else
+                continue
+        fi
+
+   # Since USED PP is the determining factor we do not need ROOTDISK size
+   #ROOTDISK=$(lspv | grep " rootvg " | awk '{{print $1}' 2> /dev/null)
+   #ROOTDISKSIZE=$(bootinfo -s ${{ROOTDISK})
+   USEDPP=$(lsvg rootvg | grep "USED PPs:" | awk '{{print substr($6,2); }')
+
+   # Only want compatible hdisk. No SAN. 
+   # Either SAS or Virtual SCSI
+   DISKSEARCH=hdisk
+   lspv | grep $DISKSEARCH | grep " None " | grep -v hdiskpower | awk '{{print $1}' | while read DISK
+   do
+   	  LOCAL_SAS=$(lscfg -l $DISK | grep SAS)
+	  LOCAL_VIRT=$(lscfg -l $DISK | grep "Virtual SCSI")
+	  LOCAL_EMCMPIO=$(lscfg -l $DISK | grep "EMC CLARiiON FCP MPIO VRAID Disk")
+      
+	  # Check if the SAS or Virtual can be used by ensuring current used pp is lower than the target disk
+	  if [[ $LOCAL_EMCMPIO != "" ]]
+	  then
+	     NEWDISKSIZE=$(bootinfo -s $DISK)
+         if (($USEDPP<=$NEWDISKSIZE))
+         then
+            ALTDISK=$(print ${{DISK}|awk ' {{ print $1 } ') ; break
+         fi
+	  elif [[ $LOCAL_SAS != "" || $LOCAL_VIRT != "" ]]
+	  then
+	     NEWDISKSIZE=$(bootinfo -s $DISK)
+         if (($USEDPP<=$NEWDISKSIZE))
+         then
+            ALTDISK=$(print ${{DISK}|awk ' {{ print $1 } ') ; break
+         fi
+	  else
+	     ALTDISK="NONE"
+	  fi
+   done
+
+[[ $ALTDISK == "" ]] && ALTDISK="NONE"
+
+print $ALTDISK > "{parameter "CustomDir" of action}/altdisk.tmp"
+__EOF
+
+wait mv __createfile "{parameter "CustomDir" of action}/alt_disk_finder.ksh"
+wait sh "{parameter "CustomDir" of action}/alt_disk_finder.ksh"
+
+parameter "hdisk_new"="{line 1 of file "/var/opt/BESClient/__BESData/__customdata/altdisk.tmp"}"
+continue if {NOT ((parameter "hdisk_new" of action) = "NONE")}
+
+// Break the mirror
+createfile until __EOF
+### start breaking mirror if exists
+echo_time() {
+    date +"%Y/%m/%d %H:%M $*"
+}
+echo_time "Start mirror Breaking" > "/var/adm/ras/altDiskNewDeploy.log" 
+echo "Checks before breaking mirror" >> "/var/adm/ras/altDiskNewDeploy.log"
+### Check if alternate disk install filesets are installed on the system lslpp -l |grep bos.alt_disk 
+if [ $(lslpp -l |grep bos.alt_disk |wc -l) -eq 0 ]
+then
+	echo "no alt_disk filesets, need to install bos.alt_disk filesets"  >> "/var/adm/ras/altDiskNewDeploy.log"
+	
+	exit
+	
+else
+	echo "got alt_disk filesets installed"  >> "/var/adm/ras/altDiskNewDeploy.log"
+fi
+### Check the operating system consistency using lppchk -v and lppchk -v -m3. Both commands should return without any output
+if [ $(lppchk -v |wc -l) -eq 0 ] && [ $(lppchk -v -m3 |wc -l) -eq 0 ]
+then 
+	echo "Verifies files of an installable software product, clear"  >> "/var/adm/ras/altDiskNewDeploy.log"
+	
+else
+	echo "something from lppchk, use lppchk -v or lppchk -v -m3 to double verify"  >> "/var/adm/ras/altDiskNewDeploy.log"
+	exit
+	
+fi
+### logical volume in rootvg names are not longer than 11 characters
+if [ $(lsvg -l rootvg | grep -vE "rootvg:|LV NAME" | awk '{{ if( length($1) > 11) print $1 } ' | wc -l) -eq 0 ]
+then
+	echo "logical volume in rootvg, names are not longer than 11 characters"  >> "/var/adm/ras/altDiskNewDeploy.log"
+else
+	echo "logical volume in rootvg, names are longer than 11 characters, so alt_disk may fail later, exit here"  >> "/var/adm/ras/altDiskNewDeploy.log"
+	exit
+fi
+###  Check for hardware errors in error log
+origTZ=$TZ
+## 3 days ago
+TZ=+72
+date=`date +"%m%d%H%M%y"`
+TZ=$origTZ
+hdiskError="$(for hdisk in `lsvg -p rootvg|awk  '{{ if ($2=="active") print $1}'`
+do
+	errpt -s $date| awk -v HDISK=$hdisk '{{if ($3=="P" && $4=="H" && $5==HDISK && tolower($0)~/error/ ) print $0}' 
+done |wc -l)"
+if [ $hdiskError -eq 0 ]
+then 
+	echo "No permanent hardware error found for hard disk in rootvg"  >> "/var/adm/ras/altDiskNewDeploy.log"
+else
+	echo "Permanent hardware error found for hard disk in rootvg, please double check, exit here"  >> "/var/adm/ras/altDiskNewDeploy.log"
+fi
+echo "Pre-break mirror check passed." >> "/var/adm/ras/altDiskNewDeploy.log"
+mainDisk=$(bootinfo -b)
+echo $mainDisk > "{parameter "CustomDir" of action}/maindisk.tmp"
+if [ $(lslv -l hd5 | grep -vE "PV|hd5" |wc -l) -gt 1 ]
+  then
+    mirrorDisk=$(lslv -l hd5 | grep -vE "PV|hd5" | awk '{{print $1}'| grep -v $mainDisk)
+	echo $mirrorDisk > "{parameter "CustomDir" of action}/mirrordisk.tmp"
+	 # save name of disk removed from the mirror 
+	 echo "###mirroraltdisk: #$mirrorDisk#" >> "/var/adm/ras/altDiskNewDeploy.log" 
+    echo_time "Find mirror Disk $mirrorDisk" >> "/var/adm/ras/altDiskNewDeploy.log" 
+	 allmirrordisks=$(lslv -l hd5 | grep -vE "PV|hd5" | awk '{{print $1}' | xargs)
+	 echo "###remirror: #$allmirrordisks#" >> "/var/adm/ras/altDiskNewDeploy.log"
+  else
+    echo_time "No mirrored boot logical volume hd5 found!" >> "/var/adm/ras/altDiskNewDeploy.log" 
+    exit
+fi
+
+# to do: Check the sizes of the disks used in rootvg mirror using bootinfo -s hdisk# where hdisk# is the hdisk number of the disks in rootvg (use lsvg -p rootvg to get the list of disks in  rootvg). If mirrored disks are different sizes, ensure that the disk choosen for alt_disk_install can hold the operating system copy and the update.
+
+unmirrorvg rootvg $mirrorDisk >> "/var/adm/ras/altDiskNewDeploy.log" 2>&1
+
+/usr/sbin/migratepv $mirrorDisk $mainDisk
+
+# to do (please modify bewlow command to do the right thing): If the disk choosen for alt_disk_install has secondary dump device, change the secondary dump device to paging space and remove the secondary dump device logical volume
+# /usr/bin/sysdumpdev -P -s /dev/hd6 >> "/var/adm/ras/altDiskNewDeploy.log" 
+
+if [ $(lspv -l $mirrorDisk |wc -l) -ge 1 ]
+  then
+    echo_time "mirror disk is not empty" >> "/var/adm/ras/altDiskNewDeploy.log" 
+    exit
+
+  else
+    echo_time "Mirror Disk clean up is ok" >> "/var/adm/ras/altDiskNewDeploy.log" 
+fi
+chvg -Qn rootvg
+reducevg rootvg $mirrorDisk >> "/var/adm/ras/altDiskNewDeploy.log" 2>&1
+chdev -l $mirrorDisk -a pv=clear >> "/var/adm/ras/altDiskNewDeploy.log" 2>&1
+chpv -c $mirrorDisk >> "/var/adm/ras/altDiskNewDeploy.log" 2>&1
+bootlist -m normal $mainDisk
+
+echo_time "finsihed mirror breaking " >> "/var/adm/ras/altDiskNewDeploy.log" 
+
+__EOF
+wait mv __createfile "{parameter "FixDir" of action}/breakMirror.sh"
+wait chmod +x "{parameter "FixDir" of action}/breakMirror.sh"
+
+// See if there is a mirror that exists
+if {exists file "/var/opt/BESClient/__BESData/__customdata/mirrordisk.tmp"}
+	wait "{parameter "FixDir" of action}/breakMirror.sh"
+	parameter "hdisk_mirror"="{line 1 of file "/var/opt/BESClient/__BESData/__customdata/mirrordisk.tmp"}"
+endif
+
+parameter "hdisk_root"="{line 1 of file "/var/opt/BESClient/__BESData/__customdata/maindisk.tmp"}"
+wait rm -f "{parameter "FixDir" of action}/breakMirror.sh"]]></ActionScript>
+		</DefaultAction>
+	</Task>
+</BES>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="BES.xsd">
+	<Task>
+		<Title>Connect Server to AD</Title>
+		<Description>BigFix must be installed before you can run this Fixlet </Description>
+		<Relevance>(exists file "/etc/krb5.conf" whose (not exists line whose (it contains "PROD.ISHEALTH.NET") of it)) OR (exists file "/etc/sssd/sssd.conf" whose (not exists line whose (it contains "PROD.ISHEALTH.NET") of it)) OR (not exists file "/etc/krb5.conf") OR (not exists file "/etc/sssd/sssd.conf")</Relevance>
+		<Category>RHEL Management</Category>
+		<Source>Internal</Source>
+		<SourceID></SourceID>
+		<SourceReleaseDate>2019-02-07</SourceReleaseDate>
+		<SourceSeverity></SourceSeverity>
+		<CVENames></CVENames>
+		<SANSID></SANSID>
+		<MIMEField>
+			<Name>x-fixlet-modification-time</Name>
+			<Value>Thu, 08 Feb 2024 15:21:36 +0000</Value>
+		</MIMEField>
+		<Domain>PTCH</Domain>
+		<DefaultAction ID="Action3">
+			<Description>
+				<PreLink>Click </PreLink>
+				<Link>here</Link>
+				<PostLink> to use the embedded file</PostLink>
+			</Description>
+			<ActionScript MIMEType="application/x-Fixlet-Windows-Shell">parameter "DownloadDir"="{pathname of client folder of current site}"
+action parameter query "PASSWD" with description "Enter your password:"
+
+createfile until __EOF
+#/bin/sh
+dnf -y install adcli sssd ssd-tools oddjob oddjob-mkhomedir samba-common-tools krb5-workstation authselect-compat realmd yum-utils
+
+__EOF
+
+wait mv __createfile "{parameter "DownloadDir" of action}/install_initial_soft.sh"
+wait sh "{parameter "DownloadDir" of action}/install_initial_soft.sh"
+
+createfile until __EOF
+[libdefaults]
+default_realm = PROD.ISHEALTH.NET
+dns_lookup_realm = true
+dns_lookup_kdc = true
+ticket_lifetime = 24h
+renew_lifetime = 7d
+forwardable = true
+
+[realms]
+PROD.ISHEALTH.NET = {
+kdc = MIDCPR00.prod.ishealth.net
+admin_server = MIDCPR00.prod.ishealth.net
+}
+
+[domain_realm]
+.prod.ishealth.net = PROD.ISHEALTH.NET
+prod.ishealth.net = PROD.ISHEALTH.NET
+__EOF
+
+wait mv __createfile "/etc/krb5.conf"
+wait chmod 644 "/etc/krb5.conf"
+
+createfile until __EOF
+[sssd]
+domains = prod.ishealth.net
+config_file_version = 2
+services = nss, pam, ssh, autofs
+
+[domain/prod.ishealth.net]
+ad_domain = prod.ishealth.net
+krb5_realm = PROD.ISHEALTH.NET
+realmd_tags = manages-system joined-with-samba
+cache_credentials = True
+id_provider = ad
+krb5_store_password_if_offline = True
+default_shell = /bin/bash
+ldap_id_mapping = True
+use_fully_qualified_names = False
+fallback_homedir = /home/%u
+access_provider = ad
+ldap_idmap_default_domain_sid = S-1-5-21-1482476501-688789844-725345543
+ldap_idmap_range_min = 100000
+ldap_idmap_range_max = 2000100000
+ldap_idmap_range_size = 2000000000
+ad_maximum_machine_account_password_age = 0
+timeout = 120
+
+[nss]
+memcache_size_group = 12
+__EOF
+wait mv __createfile "/etc/sssd/sssd.conf"
+wait chmod 600 "/etc/sssd/sssd.conf"
+
+createfile until __EOF
+#/bin/sh
+echo -n "{parameter "PASSWD" of action}" | adcli join --show-details --domain=prod.ishealth.net --login-user=warrep02 --stdin-password --domain-ou="OU=UnixLike,OU=Servers,DC=prod,DC=ishealth,DC=net"
+
+authconfig --enablesssd --enablesssdauth --enablemkhomedir --update
+
+systemctl restart sssd
+__EOF
+wait mv "{parameter "DownloadDir" of action}/join_ad.sh"
+wait sh "{parameter "DownloadDir" of action}/join_ad.sh"</ActionScript>
+		</DefaultAction>
+	</Task>
+</BES>

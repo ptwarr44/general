@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="BES.xsd">
+	<Task>
+		<Title>Install and configure REAR</Title>
+		<Description>Installs Relax and Recover if not already. If it is installed, migrate to the new config file. </Description>
+		<Relevance>(not exists file "/etc/rear/local.conf") or (exists lines whose (it contains "lamain00") of file "/etc/rear/local.conf") or (exists lines whose (it contains "lbmain00") of file "/etc/rear/local.conf")</Relevance>
+		<Category>Backup and Recovery</Category>
+		<Source>Internal</Source>
+		<SourceID></SourceID>
+		<SourceSeverity></SourceSeverity>
+		<CVENames></CVENames>
+		<SANSID></SANSID>
+		<MIMEField>
+			<Name>x-fixlet-modification-time</Name>
+			<Value>Tue, 22 Mar 2022 15:29:36 +0000</Value>
+		</MIMEField>
+		<Domain>PTCH</Domain>
+		<DefaultAction ID="Action3">
+			<Description>
+				<PreLink>Click </PreLink>
+				<Link>here</Link>
+				<PostLink> to use the embedded file</PostLink>
+			</Description>
+			<ActionScript MIMEType="application/x-Fixlet-Windows-Shell">parameter "DownloadDir"="{pathname of client folder of current site}"
+action parameter query "Mount_Point" with description "Enter the mount points to exclude:"
+
+createfile until __EOF
+#!/bin/sh
+REAR_INTALLED=$(rpm -qa | grep rear | grep -v "You have new mail" | wc -l)
+
+if [[ $REAR_INTALLED -lt 1 ]]
+then
+	yum -y install rear
+fi
+__EOF
+
+wait mv __createfile "{parameter "DownloadDir" of action}/install_rear.sh"
+wait sh "{parameter "DownloadDir" of action}/install_rear.sh"
+
+createfile until __EOF2
+# Default is to create Relax-and-Recover rescue media as ISO image
+# set OUTPUT to change that
+# set BACKUP to activate an automated (backup and) restore of your data
+# Possible configuration values can be found in /usr/share/rear/conf/default.conf
+#
+# This file (local.conf) is intended for manual configuration. For configuration
+# through packages and other automated means we recommend creating a new
+# file named site.conf next to this file and to leave the local.conf as it is.
+# Our packages will never ship with a site.conf.
+OUTPUT=ISO
+BACKUP=NETFS
+BACKUP_OPTIONS="nfsvers=3,nolock"
+BACKUP_URL=nfs://uanimm00/export/rhel_backups/
+#BACKUP_URL=nfs://lamain00/bkup01/
+BACKUP_PROG_COMPRESS_OPTIONS="--gzip"
+BACKUP_PROG_COMPRESS_SUFFIX=".gz"
+
+EXCLUDE_MOUNTPOUNT=( {parameter "Mount_Point" of action} )
+__EOF2
+
+wait mv __createfile "/etc/rear/local.conf"
+wait chmod 600 "/etc/rear/local.conf"</ActionScript>
+		</DefaultAction>
+	</Task>
+</BES>

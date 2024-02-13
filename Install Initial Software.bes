@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="BES.xsd">
+	<Task>
+		<Title>Install Initial Software</Title>
+		<Description>Periodically run the script for the System Data analysis </Description>
+		<Relevance>true</Relevance>
+		<Category>RHEL Patching</Category>
+		<Source>Internal</Source>
+		<SourceID></SourceID>
+		<SourceReleaseDate>2019-02-07</SourceReleaseDate>
+		<SourceSeverity></SourceSeverity>
+		<CVENames></CVENames>
+		<SANSID></SANSID>
+		<MIMEField>
+			<Name>x-fixlet-modification-time</Name>
+			<Value>Tue, 11 May 2021 13:10:54 +0000</Value>
+		</MIMEField>
+		<Domain>PTCH</Domain>
+		<DefaultAction ID="Action3">
+			<Description>
+				<PreLink>Click </PreLink>
+				<Link>here</Link>
+				<PostLink> to check if reboot is required</PostLink>
+			</Description>
+			<ActionScript MIMEType="application/x-Fixlet-Windows-Shell">parameter "DownloadDir"="{pathname of client folder of current site}"
+
+createfile until __EOF
+
+#!/bin/sh
+yum -y install sssd sssd-tools realmd adcli yum-utils nfs-utils ksh
+
+__EOF
+ 
+wait mv __createfile "{parameter "DownloadDir" of action}/update.sh"
+wait sh "{parameter "DownloadDir" of action}/update.sh"
+</ActionScript>
+		</DefaultAction>
+	</Task>
+</BES>

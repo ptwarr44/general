@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="BES.xsd">
+	<Task>
+		<Title>Refresh NIMCLIENT on Servers</Title>
+		<Description>Refreshes the /etc/niminfo file on clients. Run this task if the NIM Master ever changes or has been recently LPM. </Description>
+		<Relevance>exists lines whose (it contains "error: remote value passed") of file "/var/adm/ras/nimsh.log"</Relevance>
+		<Category>NIM Management</Category>
+		<Source>Internal</Source>
+		<SourceID></SourceID>
+		<SourceReleaseDate>2019-02-07</SourceReleaseDate>
+		<SourceSeverity></SourceSeverity>
+		<CVENames></CVENames>
+		<SANSID></SANSID>
+		<MIMEField>
+			<Name>x-fixlet-modification-time</Name>
+			<Value>Wed, 01 Sep 2021 20:24:13 +0000</Value>
+		</MIMEField>
+		<Domain>PTCH</Domain>
+		<DefaultAction ID="Action3">
+			<Description>
+				<PreLink>Click </PreLink>
+				<Link>here</Link>
+				<PostLink> to use the embedded file</PostLink>
+			</Description>
+			<ActionScript MIMEType="application/x-Fixlet-Windows-Shell"><![CDATA[parameter "DownloadDir"="{pathname of client folder of current site}"
+action parameter query "NIMMASTER" with description "Please enter the NIM master non-FQDN hostname (i.e., uanimm00, uanimm01):"
+
+createfile until __EOF
+#!/bin/sh
+NIMCLIENT=$(hostname -s)
+NIMSHLOG='/var/adm/ras/nimsh.log'
+
+# Stop nimclient
+stopsrc -g nimclient
+
+# move nimfo to new file
+mv /etc/niminfo /etc/niminfo.old
+
+# Run nimit
+niminit -a name=$NIMCLIENT -a master={parameter "NIMMASTER" of action} -a connect=nimsh
+
+cat /dev/null > $NIMSHLOG
+__EOF
+
+wait mv __createfile "{parameter "DownloadDir" of action}/recreate_nim_client.sh"
+wait sh "{parameter "DownloadDir" of action}/recreate_nim_client.sh"
+]]></ActionScript>
+		</DefaultAction>
+	</Task>
+</BES>

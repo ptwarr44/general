@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="BES.xsd">
+	<Task>
+		<Title>Update chronyd with nettime.lan.ishealth.net</Title>
+		<Description>Periodically run the script for the System Data analysis </Description>
+		<Relevance>(not exists lines whose (it contains "nettime.lan.ishealth.net") of file "/etc/chrony.conf") AND (name of operating system contains "7." OR name of operating system contains "8.")</Relevance>
+		<Category>RHEL Management</Category>
+		<Source>Internal</Source>
+		<SourceID></SourceID>
+		<SourceReleaseDate>2021-08-18</SourceReleaseDate>
+		<SourceSeverity></SourceSeverity>
+		<CVENames></CVENames>
+		<SANSID></SANSID>
+		<MIMEField>
+			<Name>x-fixlet-modification-time</Name>
+			<Value>Wed, 18 Aug 2021 15:32:48 +0000</Value>
+		</MIMEField>
+		<Domain>PTCH</Domain>
+		<DefaultAction ID="Action3">
+			<Description>
+				<PreLink>Click </PreLink>
+				<Link>here</Link>
+				<PostLink> to use the embedded file</PostLink>
+			</Description>
+			<ActionScript MIMEType="application/x-Fixlet-Windows-Shell"><![CDATA[parameter "DownloadDir"="{pathname of client folder of current site}"
+
+createfile until __EOF
+#!/bin/bash
+OUTPUTLOG="/tmp/cron_update.txt"
+
+# Comment out rhel servers.
+echo "Updating '/etc/chrony.conf' with nettime.lan.ishealth.net" > $OUTPUTLOG
+sed -i.bak '/rhel.pool.ntp/s/^/#/' /etc/chrony.conf 
+echo "# Kindred NTP Server" >> /etc/chrony.conf
+echo "server nettime.lan.ishealth.net iburst" >> /etc/chrony.conf
+
+# Remove line from cron
+echo "Removing ntp entry from roots crontab" >> $OUTPUTLOG
+sed -i.bak '/nettime.lan.ishealth.net/d' /var/spool/cron/root
+sed -i '/NTP/d' /var/spool/cron/root
+
+# Restart the crond service
+echo "Restarting crond service." >> $OUTPUTLOG
+systemctl restart crond >> $OUTPUTLOG
+
+# Ensure chronyd is running and enabled
+ISACTIVE=$(systemctl is-active chronyd)
+ISENABLED=$(systemctl is-enabled chronyd)
+
+if [[ $ISACTIVE != "active" ]]
+then
+	# Start chronyd
+	echo "Chronyd is not activated. Activating now." >> $OUTPUTLOG
+	systemctl start chronyd >> $OUTPUTLOG
+	
+	if [[ $ISENABLED != "enabled" ]]
+	then
+		# Enabled chronyd
+		echo "Chronyd is not enabled. Enabling now." >> $OUTPUTLOG
+		systemctl enable chronyd >> $OUTPUTLOG
+	fi
+else
+	# Restart chronyd
+	echo "Restarting chronyd service." >> $OUTPUTLOG
+	systemctl restart chronyd >> $OUTPUTLOG
+fi
+
+__EOF
+
+wait mv __createfile "{parameter "DownloadDir" of action}/update_chronyd_ntp.sh"
+wait sh "{parameter "DownloadDir" of action}/update_chronyd_ntp.sh"
+]]></ActionScript>
+		</DefaultAction>
+	</Task>
+</BES>

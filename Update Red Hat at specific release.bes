@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BES xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="BES.xsd">
+	<Task>
+		<Title>Update Red Hat at specific release</Title>
+		<Description>Periodically run the script for the System Data analysis </Description>
+		<Relevance>true</Relevance>
+		<Category>RHEL Patching</Category>
+		<Source>Internal</Source>
+		<SourceID></SourceID>
+		<SourceReleaseDate>2019-02-07</SourceReleaseDate>
+		<SourceSeverity></SourceSeverity>
+		<CVENames></CVENames>
+		<SANSID></SANSID>
+		<MIMEField>
+			<Name>x-fixlet-modification-time</Name>
+			<Value>Sun, 29 Jan 2023 00:14:12 +0000</Value>
+		</MIMEField>
+		<Domain>PTCH</Domain>
+		<DefaultAction ID="Action3">
+			<Description>
+				<PreLink>Click </PreLink>
+				<Link>here</Link>
+				<PostLink> to check if reboot is required</PostLink>
+			</Description>
+			<ActionScript MIMEType="application/x-Fixlet-Windows-Shell"><![CDATA[parameter "DownloadDir"="{pathname of client folder of current site}"
+action parameter query "RHEL-Release-8" with description "Enter the Red Hat 8 release you wish to update at:"
+action parameter query "RHEL-Release-7" with description "Enter the Red Hat 7 release you wish to update at:"
+
+
+if { (major version of operating system equals 8) }
+	continue if { (parameter "RHEL-Release-8" of action >= version of operating system) }
+	//clean yum
+	wait "/bin/bash" -c "/usr/bin/dnf clean all"
+	
+	//update server to release level 
+	wait "/bin/bash" -c "/usr/bin/dnf update --releasever="{parameter "RHEL-Release-8" of action}" --assumeyes --allowerasing"
+endif
+
+if { (major version of operating system equals 7) }
+	continue if { (parameter "RHEL-Release-7" of action >= version of operating system) }
+	//set release level for RHEL 7
+	wait "/bin/bash" -c "/usr/bin/subscription-manager release --set="{parameter "RHEL-Release-7" of action}""
+	
+	//clean yum
+	wait "/bin/bash" -c "/usr/bin/yum clean all"
+	
+	//update server
+	wait "/bin/bash" -c "/usr/bin/yum update --releasever="{parameter "RHEL-Release-7" of action}" --assumeyes"
+endif
+
+//clean yum
+wait "/bin/bash" -c "/usr/bin/yum clean all"]]></ActionScript>
+		</DefaultAction>
+	</Task>
+</BES>

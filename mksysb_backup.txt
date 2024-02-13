@@ -1,0 +1,28 @@
+#!/usr/bin/ksh
+
+while [ $# -gt 0 ]
+do
+        CLIENT=$1; shift
+        echo "MKSYSB BACKUP OF HOST: $CLIENT"
+
+        # Check if the client is registered
+        lsnim -t standalone $CLIENT >/dev/null 2>&1
+        if [[ $? -ne 0  ]]
+        then
+                echo "ERROR: $CLIENT not registerd as a nim client machine"
+                continue
+        fi
+
+        # If previous mksysb exists, then delete it.
+        lsnim -t mksysb ${CLIENT}_mksysb >/dev/null 2>&1
+        if [[ $? -eq 0 ]]
+        then
+                nim -o remove ${CLIENT}_mksysb
+        fi
+
+        # Now create a mksysb resource for client
+        nim -o define -t mksysb -a server=master \
+        -a location=/export/mksysb_files/${CLIENT}_mksysb -a source=${CLIENT} \
+        -a mk_image=yes -a mksysb_flags=emvX -a comments="${CLIENT}_mksysb" ${CLIENT}_mksysb
+
+done
