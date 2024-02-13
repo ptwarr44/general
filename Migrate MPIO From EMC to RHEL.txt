@@ -1,0 +1,34 @@
+RED HAT Move MPIO from EMC to RHEL native tools
+
+1) Remove/uninstall the emc package per EMC's process
+	- systemctl disable PowerPath
+	- systemctl disable PowerPathPost-start
+	- Comment out the FS (or multiple) using PowerPath
+	- Reboot
+	- rpm -ev EMC-Power*
+
+2)Change the lvm filter to scan mpath devices rather than emcpower devices in /etc/lvm/lvm.conf:
+	filter = [ "a|3600605b00a5a4aa01d719410192afca8|", "a|/dev/mapper/mpath*|", "r|.*|" ]
+	global_filter = [ "a|3600605b00a5a4aa01d719410192afca8|", "a|/dev/mapper/mpath.*|", "r|.*|" ]
+
+3)Follow this process to start our mpio:
+  https://access.redhat.com/solutions/66281
+
+Note: you have already installed device-mapper-multipath so you may skip that step, so you should just need to run:
+  # mpathconf --enable --user_friendly_names y
+  # multipath -v2
+  # multipath -ll
+
+and confirm your multipath devices have formed.
+
+4)Check to ensure your PV's are not using your multipath devices:
+  # pvscan --cache
+  # pvs -v | grep mpath
+
+Once confirmed, activate and mount:
+  # vgchange -ay
+  # mount -a
+  
+ Enable and start multipath
+  # systemctl start multipathd
+  # systemctl enable multipathd

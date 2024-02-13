@@ -1,0 +1,23 @@
+Checking ABRT files:
+
+# Check number of recent crashes
+abrt-cli status
+
+# Command to list any ABRT present
+abrt-cli list
+
+[root@laivms01 abrt]# abrt-cli list
+id 08f6a9f6ef22569ee20c77a7ea7c372e52b503a4
+reason:         nseserv killed by SIGABRT
+time:           Mon 30 Aug 2021 12:46:35 PM EDT
+cmdline:        ./.DLLCACHE/nseserv -className=com/rapid7/nexpose/nse/NSE
+uid:            0 (root)
+count:          1
+Directory:      /var/spool/abrt/ccpp-2021-08-30-12:46:35.738822-445359
+Run 'abrt-cli report /var/spool/abrt/ccpp-2021-08-30-12:46:35.738822-445359' for creating a case in Red Hat Customer Portal
+
+# Use the id listed in the abrt-cli list command to print more information
+abrt-cli info -d <ABRT ID>
+
+# Remove a abrt report, Parent DIR is always /var/spool/abrt/
+abrt-cli rm <DIR>

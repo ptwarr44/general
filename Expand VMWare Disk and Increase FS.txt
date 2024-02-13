@@ -1,0 +1,26 @@
+EXPAND VMWARE DISK AND INCREASE FS
+
+Find and write down the disk on the server that needs to be expanded, noting its size – fdisk –l and vgdisplay -v
+
+Login to https://livcsa01/ 
+
+Right-click server and create a snapshot first and foremost before making any changes.
+
+Find the server and select Edit Settings.
+
+Expand the disk to the desired size.
+
+Go back to your putty session and run ‘echo 1 > /sys/class/block/sd*/device/rescan’, substitute * for the disk. Check fdisk –l for the new size.
+
+Run fdisk /dev/sd* to edit the disk you expanded
+
+n (new partition), p (primary), select partition number, select defaults for sectors, select t and 8e for expansion, select w to write. 
+
+Once complete, run partprobe.
+
+pvresize /dev/sb** to resize the physical volume in the volume group. Use vgs or pvs to see the PV.
+
+Run lvextend -L +3G /dev/mapper/vg_rhel-var to expand /var. Substitute any FS under the VG you are working with.
+
+Run resize2fs /dev/mapper/vg_rhel-var to complete the changes.
+For XFS, run xfs_growfs -d /dev/mapper/vg_rhel-var

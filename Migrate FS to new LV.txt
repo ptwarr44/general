@@ -1,0 +1,22 @@
+## THIS WORK ASSUMES A DISK HAS BEEN PRESENTED AND THE BUS HAS BEEN SCANNED TO SHOW IT
+
+### PERFORM ANY TIME ###
+fdisk /dev/sdb (most likely sdb)
+n, p, default, default, default, w
+pvcreate /dev/sdb1 
+vgcreate nexscan /dev/sdb1
+lvcreate -n nexscan_lv -l 100%FREE nexscan
+mkfs.xfs /dev/nexscan/nexscan_lv
+
+### AFTER APPLICATION IS DOWN ###
+cp -rp /opt/rapid7 /opt/rapid7_old
+diff -rq /opt/rapid7 /opt/rapid7_old (see if any files are different)
+umount /opt/rapid7 (fuser -m /opt/rapid7 to see process using FS. Kill it)
+put "/dev/mapper/nexscan-nexscan_lv /opt/rapid7      xfs     defaults        0 0" in /etc/fstab
+comment out old FS in /etc/fstab
+mount /dev/mapper/nexscan-nexscan_lv /opt/rapid7
+cp -rp /opt/rapid7_old/* /opt/rapid7/
+
+shutdown -Fr now
+
+### START THE APPLICATION ###

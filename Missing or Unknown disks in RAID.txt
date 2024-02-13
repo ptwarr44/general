@@ -1,0 +1,14 @@
+If you see Missing and Unknown disks in smitty sasdam
+
+# Remove the pdisk in question
+rmdev -dl pdisk#
+
+# Go to diag and run a system verification on sissas
+diag
+Run Diagnostics
+sissas# - press Enter
+F7
+System Verification
+
+# Once complete, run cfgmgr
+cfgmgr

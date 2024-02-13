@@ -1,0 +1,30 @@
+Mount the AIX 7 base iso as a filesystem called /mount.
+# loopmount -i aixv7-base.iso -m /mount -o "-V cdrfs -o ro"
+
+Define the LPP source (From the NIM A to Z redbook):
+# mkdir /export/lpp_source/LPPaix53tl10sp2
+# nim -o define -t lpp_source -a server=master -a location=/export/lpp_source/LPPaix53tl10sp2 -a source=/usr/sys/inst.images/AIX/ LPPaix53tl10sp2
+
+Check with:
+# lsnim -l LPPaix53tl10sp2
+
+Rebuild the .toc:
+# nim -Fo check LPPaix53tl10sp2
+For newer AIX releases, e.g. AIX 7.1 and AIX 7.2, you may get a warning like:
+Warning: 0042-354 c_mk_lpp_source: The lpp_source is missing a
+    bos.vendor.profile which is needed for the simages attribute. To add
+    a bos.vendor.profile to the lpp_source run the "update" operation
+    with "-a recover=yes" and specify a "source" that contains a
+    bos.vendor.profile such as the installation CD.  If your master is not
+    at level 5.2.0.0 or higher, then manually copy the bos.vendor.profile
+    into the installp/ppc directory of the lpp_source.
+If this happens, you can either do exactly what it says, copy the installp/ppc/bos.vendor.profile file from your source DVD ISO image into the installp/ppc directory of the LPP source. Or, you can remove the entire LPP source, then copy the installp/ppc/bos.vendor.profile form the DVD ISO image into the directory that contains the full AIX software set (in the example above: /sw_depot/5300-10-02-0943-full), and then re-create the LPP source. That should help to avoid the warning.
+
+If you ignore this warning, then you'll notice that the next step (create a SPOT from the LPP source) will fail.
+
+Define a SPOT from the LPP source:
+# nim -o define -t spot -a server=master -a location=/export/spot/SPOTaix53tl10sp2 -a source=LPPaix53tl10sp2 -a installp_flags=-aQg SPOTaix53tl10sp2
+
+Check the SPOT:
+# nim -o check SPOTaix53tl10sp2
+# nim -o lppchk -a show_progress=yes SPOTaix53tl10sp2

@@ -1,0 +1,39 @@
+# lssrc -s vio_daemon
+
+Subsystem     Group      PID     Status
+
+ vio_daemon            7471560   active
+
+# stopsrc -s vio_daemon
+
+0513-044 The viod Subsystem was requested to stop.
+
+# rm /usr/lib/libpq.a
+
+rm: /usr/lib/libpq.a: A file or directory in the path name does not exist.
+
+# startsrc -s vio_daemon
+
+0513-059 The vio_daemon Subsystem has been started. Subsystem PID is 19726706.
+
+# ps -ef | grep vio_daemon
+
+  root 18612578 19398968  0 10:34:08 pts/1 0:00 grep vio_daemon
+
+  root 19726706 2097548  0 10:34:02   - 0:00 /usr/sbin/vio_daemon
+
+# kill -1 19726706.
+
+# ps -ef | grep vio_daemon
+
+  root 19726706 2097548  0 10:34:02   - 0:00 /usr/sbin/vio_daemon
+
+# lppchk -vm3
+
+# lppchk -c
+
+lppchk: 0504-206 File /usr/lib/libpq.a could not be located.
+
+
+
+Topas does not show any high CPU utilization right now but I am going to monitor and report back.

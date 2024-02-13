@@ -1,0 +1,7 @@
+Add servers to DNS via PowerShell
+
+Add-DnsServerResourceRecordA -ComputerName 172.22.227.70 -Name LINSXT00 -ZoneName ishealth.net -CreatePtr -IPv4Address 172.25.0.80
+Add-DnsServerResourceRecordA -ComputerName 172.22.227.70 -Name LINSXT01 -ZoneName ishealth.net -CreatePtr -IPv4Address 172.25.0.81
+Add-DnsServerResourceRecordA -ComputerName 172.22.227.70 -Name LINSXT02 -ZoneName ishealth.net -CreatePtr -IPv4Address 172.25.0.82
+
+Add-DnsServerResourceRecordA -ComputerName 172.22.227.70 -Name z-vra-liesx535 -ZoneName ishealth.net -CreatePtr -IPv4Address 172.25.42.98
