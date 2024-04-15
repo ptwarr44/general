@@ -1,0 +1,37 @@
+---
+# Description: Check for existence of post_update.sh script and if reboot
+#              flag has been set; if so, reboot host and wait for restart.
+#------------------------------------------------------------------------------
+- name: Checking if post_update.sh script exists
+  stat:
+    path: /usr/local/scripts/ansible/post_update.sh
+  register: update_scripts
+
+- name: Checking if reboot flag exists
+  stat:
+    path: /tmp/reboot
+  register: reboot
+
+- name: Clearing reboot flag
+  file:
+    path: /tmp/reboot
+    state: absent
+  when: reboot.stat.exists == true
+
+- name: Rebooting host(s).
+  shell: sleep 2 && /sbin/shutdown -r now "Reboot required for updated kernel." && sleep 2
+  async: 20
+  poll: 0
+  when: reboot.stat.exists == true
+
+# This version doesn't freak out about sudo permission issues for non-privileged execution.
+- name: Waiting for host(s) to reboot
+  wait_for_connection:
+    delay: 60
+    timeout: 300
+  when: reboot.stat.exists == true
+
+- name: Running post update script
+  command: sh /usr/local/scripts/ansible/post_update.sh
+  when:
+    - update_scripts.stat.exists == true

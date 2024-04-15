@@ -1,0 +1,58 @@
+---
+#------------------------------------------------------------------------------
+# Description: Check for existence of pre_update.sh script and run it if
+#              found.
+#------------------------------------------------------------------------------
+
+## Create /usr/local/scripts/ansible
+- name: Create /usr/local/scripts/ansible
+  file:
+    path: /usr/local/scripts/ansible
+    state: directory
+    mode: 0755
+
+## Copy necessary files to the server
+- name: Copy scripts to target server
+    copy:
+      src: "{{ item }}"
+      dest: /usr/local/scripts/ansible
+      mode: 644
+      owner: root
+      group: root
+    with_fileglob:
+      - "/etc/ansible/roles/rhel_os_patching/scripts/*"
+
+## Check if yum-utils is installed
+- name: Gather the package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Print the package facts
+  ansible.builtin.debug:
+    var: ansible_facts.packages
+
+- name: Check whether a package called yum-utils is installed
+  ansible.builtin.debug:
+    msg: "{{ ansible_facts.packages['yum-utils'] | length }} versions of yum-utils are installed!"
+  when: "'yum-utils' in ansible_facts.packages"
+
+- name: Install yum-utils if it does not exist
+  debug:
+    msg: "Versions of yum-utils are NOT installed! Installing the latest."
+  dnf:
+    name: yum-utils
+    state: latest
+  when: "'yum-utils' not in ansible_facts.packages"
+##
+
+## Run pre_update.sh scripts if they exist
+  - name: Checking if pre_update.sh script exists
+  stat:
+    path: /usr/local/scripts/ansible/pre_update.sh
+  register: update_scripts
+
+- name: Running pre update script
+  command: sh /usr/local/scripts/ansible/pre_update.sh
+  when: update_scripts.stat.exists == true
+  ignore_errors: no
+##
