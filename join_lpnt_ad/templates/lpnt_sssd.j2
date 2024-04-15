@@ -1,0 +1,26 @@
+[sssd]
+domains = lpnt.corpad.net
+config_file_version = 2
+services = nss, pam, ssh, autofs
+
+[domain/lpnt.corpad.net]
+ad_domain = lpnt.corpad.net
+krb5_realm = LPNT.CORPAD.NET
+realmd_tags = manages-system joined-with-samba
+cache_credentials = True
+id_provider = ad
+krb5_store_password_if_offline = True
+default_shell = /bin/bash
+ldap_id_mapping = True
+use_fully_qualified_names = False
+fallback_homedir = /home/%u
+access_provider = ad
+ldap_idmap_default_domain_sid = S-1-5-21-859369641-3910318980-1617942171
+ldap_idmap_range_min = 100000
+ldap_idmap_range_max = 2000100000
+ldap_idmap_range_size = 2000000000
+ad_maximum_machine_account_password_age = 0
+timeout = 120
+
+[nss]
+memcache_size_group = 12

@@ -1,0 +1,78 @@
+---
+- name: Join Red Hat Linux server to AD domain
+  become: yes
+  hosts: all
+  
+  vars:
+    ad_domain: { domain }
+    ad_user: { user }
+    ad_password: { password }
+
+  tasks:
+  - name: Install required packages
+    package:
+      name:
+        - realmd
+        - sssd
+        - sssd-tools
+        - adcli
+        - oddjob
+        - oddjob-mkhomedir
+        - yum-utils
+        - samba-client
+        - samba-common
+        - samba-common-tools
+      state: present
+
+  - name: Copy krb5.conf file to server
+    template:
+      src: /etc/ansible/roles/join_lpnt_ad/templates/krb5_conf.j2
+      dest: /etc/krb5.conf
+      mode: 0644
+      owner: root
+      group: root
+
+  - name: Join the LPNT AD domain
+    shell: echo {{ ad_password }} | adcli join --show-details --domain={{ ad_domain }} --login-user={{ ad_user }} --stdin-password
+    register: join_result
+    ignore_errors: yes
+
+  - name: Check the AD join result
+    fail:
+      msg: "Unable to join the AD domain, {{ join_result.stderr }}"
+    when: join_result.rc != 0
+
+  - name: Move lpnt_sssd.conf to /etc/sssd on server
+    template:
+      src: /etc/ansible/roles/join_lpnt_ad/templates/lpnt_sssd.j2
+      dest: /etc/sssd/sssd.conf
+      mode: 0600
+      owner: root
+      group: root
+
+  - name: Add Admins to sudoers
+    template:
+      src: /etc/ansible/roles/join_lpnt_ad/templates/admins.j2
+      dest: /etc/sudoers.d/admins
+      mode: 0440
+      owner: root
+      group: root
+
+  - name: Run authconfig
+    command: authconfig --enablesssd --enablesssdauth --enablemkhomedir --update
+
+  - name: Restart SSSD service
+    service:
+      name: sssd
+      state: restarted
+      enabled: yes
+
+  - name: Validate the AD join
+    command: getent passwd {{ ad_user }}
+    register: validate_result
+    ignore_errors: yes
+
+  - name: Check the validation result
+    fail:
+      msg: "AD join validation failed, {{ validate_result.stderr }}"
+    when: validate_result.rc != 0
