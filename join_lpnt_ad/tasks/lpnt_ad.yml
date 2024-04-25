@@ -22,6 +22,7 @@
         - samba-client
         - samba-common
         - samba-common-tools
+        - authconfig
       state: present
 
   - name: Copy krb5.conf file to server
