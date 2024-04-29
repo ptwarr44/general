@@ -1,0 +1,36 @@
+# Save HMC data
+saveupgdata -r disksftp -h uanimm01 -u root -d /usr/sys/inst.images/AIX/savevg_backup/HMC/<server> --migrate -i netcfg,perfmon
+
+# Save these to a remote server IP (uanimm01:/usr/sys/inst.images/AIX/savevg_backup/HMC/<server>_IP.txt)
+lssysconn -r all -F ipaddr
+
+# Remove Connections
+lssysconn -r all -F ipaddr | while read IP
+do
+	echo $IP 
+	rmsysconn -o remove --ip $IP 
+done
+
+# Deploy new server
+user: hscroot
+pass: abc123
+
+# Restore HMC data
+rstupgdata -r sftp -h uanimm01 -u root -d /usr/sys/inst.images/AIX/savevg_backup/HMC --migrate 
+
+# Copy IP text files for your server to /home/hscroot
+scp -rp root@uanimm01:/usr/sys/inst.images/AIX/savevg_backup/HMC/<server>_IP.txt ~/
+
+# Create connection on new server
+for IP in `cat ~/<server>_IP.txt`
+do
+	echo $IP
+	mksysconn --ip $IP --passwd r3dr0s3s
+done
+
+# Update email sender if you renamed the server
+lssacfg -t email
+chsacfg -t email -o rmfrom
+chsacfg -t email -o addfrom -a livhmc02@scionhealth.com
+
+# Exhange SSH keys with uanimm01
